@@ -37,11 +37,13 @@ export function AddPaymentSheet({ userId, userName, dues }: { userId: string, us
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button size="sm" variant="outline" className="w-full sm:w-auto mt-2 sm:mt-0 shadow-sm font-semibold">
-          <Plus className="w-4 h-4 mr-1" /> Add Payment
-        </Button>
-      </SheetTrigger>
+      <SheetTrigger 
+        render={
+          <Button size="sm" variant="outline" className="w-full sm:w-auto mt-2 sm:mt-0 shadow-sm font-semibold">
+            <Plus className="w-4 h-4 mr-1" /> Add Payment
+          </Button>
+        }
+      />
       <SheetContent className="bg-card w-full sm:max-w-md">
         <SheetHeader className="mb-6">
           <SheetTitle className="text-xl">Record Payment</SheetTitle>
