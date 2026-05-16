@@ -7,15 +7,15 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { updateOwnerSettings } from '@/lib/actions/settings'
 import Image from 'next/image'
+import dbConnect from '@/lib/db/mongodb'
+import { OwnerSettings as OwnerSettingsModel } from '@/models/OwnerSettings'
 
 export default async function OwnerSettings() {
+  await dbConnect()
   const supabase = await createClient()
 
-  const { data: settings } = await supabase
-    .from('owner_settings')
-    .select('*')
-    .limit(1)
-    .single()
+  const settingsDoc = await OwnerSettingsModel.findOne().lean()
+  const settings = settingsDoc ? { ...settingsDoc, id: settingsDoc._id?.toString() } : null
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500 max-w-4xl">
