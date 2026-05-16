@@ -1,21 +1,19 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { RevenueChart } from '@/components/owner/RevenueChart'
+import dbConnect from '@/lib/db/mongodb'
+import { Order } from '@/models/Order'
 
 export default async function OwnerRevenue() {
-  const supabase = await createClient()
+  await dbConnect()
 
-  const { data: allOrders } = await supabase
-    .from('orders')
-    .select('total_amount, created_at')
-    .eq('status', 'delivered')
-    .order('created_at', { ascending: true })
+  const allOrders = await Order.find({ status: 'delivered' }).sort({ createdAt: 1 }).lean()
 
   // Aggregate by month (Mocked aggregation for frontend without complex SQL grouping)
   const monthlyRevenue: Record<string, number> = {}
 
   allOrders?.forEach(order => {
-    const date = new Date(order.created_at)
+    const date = new Date(order.createdAt)
     const month = date.toLocaleString('default', { month: 'short' })
     const year = date.getFullYear()
     const key = `${month} ${year}`

@@ -24,7 +24,7 @@ export default async function OwnerDashboard() {
   // 1. Today's orders count and revenue
   const todayOrders = await Order.find({ createdAt: { $gte: today } }).lean()
 
-  const todaysRevenue = todayOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.totalAmount, 0)
+  const todaysRevenue = todayOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + (o.total_amount || 0), 0)
   const todaysOrdersCount = todayOrders.length
   const pendingOrdersCount = todayOrders.filter(o => o.status === 'pending').length
 
@@ -32,27 +32,27 @@ export default async function OwnerDashboard() {
   const allOrders = await Order.find({ status: 'delivered' }).lean()
   const allPayments = await Payment.find().lean()
   
-  const totalDelivered = allOrders.reduce((sum, o) => sum + o.totalAmount, 0)
-  const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0)
+  const totalDelivered = allOrders.reduce((sum, o) => sum + (o.total_amount || 0), 0)
+  const totalPaid = allPayments.reduce((sum, p) => sum + (p.amount || 0), 0)
   const totalDues = Math.max(0, totalDelivered - totalPaid)
 
   // 3. Recent 5 orders
   const recentOrders = await Order.find().sort({ createdAt: -1 }).limit(5).lean()
   
   // Fetch related users and menus for recent orders
-  const userIds = [...new Set(recentOrders.map(o => o.userId))]
+  const userIds = [...new Set(recentOrders.map(o => o.user_id))]
   const users = await User.find({ supabaseId: { $in: userIds } }).lean()
   const userMap = users.reduce((acc: any, u) => { acc[u.supabaseId] = u; return acc }, {})
   
-  const menuIds = [...new Set(recentOrders.map(o => o.menuId))]
+  const menuIds = [...new Set(recentOrders.map(o => o.menu_id))]
   const menus = await Menu.find({ _id: { $in: menuIds } }).lean()
   const menuMap = menus.reduce((acc: any, m) => { acc[m._id?.toString()] = m; return acc }, {})
 
   const recentOrdersWithDetails = recentOrders.map(o => ({
     ...o,
     id: o._id?.toString(),
-    customerName: userMap[o.userId]?.name || 'Unknown',
-    itemName: menuMap[o.menuId]?.item_name || 'Unknown Item'
+    customerName: userMap[o.user_id]?.name || 'Unknown',
+    itemName: menuMap[o.menu_id]?.item_name || 'Unknown Item'
   }))
 
   // 4. Mock Revenue Data for Chart
@@ -158,7 +158,7 @@ export default async function OwnerDashboard() {
                       <p className="text-xs text-muted-foreground">{order.itemName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-sm">₹{order.totalAmount}</p>
+                      <p className="font-bold text-sm">₹{order.total_amount}</p>
                       <p className="text-[10px] uppercase text-muted-foreground">{order.status}</p>
                     </div>
                   </div>
