@@ -9,8 +9,10 @@ export default async function CustomerDashboard() {
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const menuDoc = await Menu.findOne({ date: today, available: true }).lean()
-  const menu = menuDoc ? {
+  // Fetch menu regardless of availability so we can show right message
+  const menuDoc = await Menu.findOne({ date: today }).lean()
+  const isClosed = menuDoc && !menuDoc.available
+  const menu = menuDoc && menuDoc.available ? {
     id: menuDoc._id?.toString(),
     available: menuDoc.available,
     bundle_price: menuDoc.bundle_price,
@@ -70,6 +72,16 @@ export default async function CustomerDashboard() {
           <div className="lg:col-span-3">
             <OrderForm menu={menu} />
           </div>
+        </div>
+      ) : isClosed ? (
+        <div className="flex flex-col items-center justify-center p-12 bg-destructive/5 border border-destructive/20 rounded-2xl text-center">
+          <div className="p-4 bg-destructive/10 rounded-full mb-4">
+            <ChefHat className="w-12 h-12 text-destructive opacity-70" />
+          </div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">Orders are Closed</h2>
+          <p className="text-muted-foreground max-w-md">
+            The kitchen has stopped accepting orders for today. Please contact the owner or check back tomorrow.
+          </p>
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center p-12 bg-card border border-dashed border-border rounded-2xl text-center">

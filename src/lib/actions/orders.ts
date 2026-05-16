@@ -5,6 +5,7 @@ import { revalidatePath } from 'next/cache'
 import dbConnect from '@/lib/db/mongodb'
 import { User } from '@/models/User'
 import { Order } from '@/models/Order'
+import { Menu } from '@/models/Menu'
 
 export async function createOrder(
   formData: FormData,
@@ -21,6 +22,11 @@ export async function createOrder(
   const quantity = parseInt(formData.get('quantity') as string) || 1
   const notes = formData.get('notes') as string
   const isBundle = formData.get('is_bundle') === 'true'
+
+  // Server-side guard: block if menu is closed
+  const menuDoc = await Menu.findById(menuId)
+  if (!menuDoc) throw new Error("Menu not found")
+  if (!menuDoc.available) throw new Error("Orders are closed. The owner has stopped accepting orders for today.")
 
   if (selectedItems.length === 0) throw new Error("Please select at least one item")
 
