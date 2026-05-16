@@ -9,7 +9,7 @@ import dbConnect from '@/lib/db/mongodb'
 import { User } from '@/models/User'
 import { Order } from '@/models/Order'
 import { Menu } from '@/models/Menu'
-import { DeleteConfirmButton } from '@/components/owner/DeleteConfirmButton'
+import { OrderDeleteButton } from '@/components/owner/DeleteConfirmButton'
 
 export default async function OwnerOrders({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   await dbConnect()
@@ -20,7 +20,7 @@ export default async function OwnerOrders({ searchParams }: { searchParams: Prom
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  let filterQuery: any = { createdAt: { $gte: today } }
+  let filterQuery: any = { createdAt: { $gte: today }, archived: { $ne: true } }
   if (filter !== 'all') {
     filterQuery.status = filter
   }
@@ -143,10 +143,9 @@ export default async function OwnerOrders({ searchParams }: { searchParams: Prom
                         </Button>
                       </form>
                     </div>
-                    <DeleteConfirmButton
-                      label="order"
-                      description={`Delete ${order.profiles?.name}'s order of ₹${order.total_amount}? This cannot be undone.`}
-                      onDelete={async () => { 'use server'; await deleteOrder(order.id) }}
+                    <OrderDeleteButton
+                      onDeleteKeepRevenue={async () => { 'use server'; await deleteOrder(order.id, true) }}
+                      onDeleteRemoveRevenue={async () => { 'use server'; await deleteOrder(order.id, false) }}
                     />
                   </div>
                 </div>

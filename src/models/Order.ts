@@ -9,6 +9,7 @@ export interface IOrder extends Document {
   is_bundle: boolean;
   total_amount: number;
   status: string;
+  archived: boolean; // true = hidden from orders list but still counted in revenue
   createdAt: Date;
 }
 
@@ -21,6 +22,7 @@ const OrderSchema: Schema = new Schema({
   is_bundle: { type: Boolean, default: false },
   total_amount: { type: Number, required: true },
   status: { type: String, default: 'pending' },
+  archived: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now },
 });
 

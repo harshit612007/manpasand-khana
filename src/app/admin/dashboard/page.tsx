@@ -22,9 +22,11 @@ export default async function OwnerDashboard() {
   today.setHours(0, 0, 0, 0)
 
   // 1. Today's orders count and revenue
-  const todayOrders = await Order.find({ createdAt: { $gte: today } }).lean()
+  // archived orders still count toward revenue but NOT toward visible order count
+  const todayAllOrders = await Order.find({ createdAt: { $gte: today } }).lean()
+  const todayOrders = todayAllOrders.filter(o => !o.archived)
 
-  const todaysRevenue = todayOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + (o.total_amount || 0), 0)
+  const todaysRevenue = todayAllOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + (o.total_amount || 0), 0)
   const todaysOrdersCount = todayOrders.length
   const pendingOrdersCount = todayOrders.filter(o => o.status === 'pending').length
 

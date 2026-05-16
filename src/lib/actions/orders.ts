@@ -65,7 +65,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
   revalidatePath('/orders')
 }
 
-export async function deleteOrder(orderId: string) {
+export async function deleteOrder(orderId: string, keepInRevenue: boolean = false) {
   await dbConnect()
   const supabase = await createClient()
 
@@ -75,8 +75,15 @@ export async function deleteOrder(orderId: string) {
   const profile = await User.findOne({ supabaseId: user.id })
   if (profile?.role !== 'owner') throw new Error("Unauthorized")
 
-  await Order.findByIdAndDelete(orderId)
+  if (keepInRevenue) {
+    // Archive: hide from orders list but keep counted in revenue
+    await Order.findByIdAndUpdate(orderId, { archived: true })
+  } else {
+    // Fully delete: removed from revenue too
+    await Order.findByIdAndDelete(orderId)
+  }
 
   revalidatePath('/admin/orders')
   revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/revenue')
 }
