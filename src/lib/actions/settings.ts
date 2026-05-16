@@ -34,12 +34,14 @@ export async function updateOwnerSettings(formData: FormData) {
       .from('owner-assets')
       .upload(fileName, qrImageFile)
 
-    if (!uploadError) {
-      const { data: { publicUrl } } = supabase.storage
-        .from('owner-assets')
-        .getPublicUrl(fileName)
-      qrUrl = publicUrl
+    if (uploadError) {
+      throw new Error(`Failed to upload QR Code: ${uploadError.message}. Please ensure the 'owner-assets' bucket exists and is public in Supabase.`)
     }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('owner-assets')
+      .getPublicUrl(fileName)
+    qrUrl = publicUrl
   }
 
   const existingSettings = await OwnerSettings.findOne()
