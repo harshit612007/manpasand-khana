@@ -1,44 +1,61 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { RevenueChart } from '@/components/owner/RevenueChart'
 import { format } from 'date-fns'
 import Link from 'next/link'
-import { UtensilsCrossed, TrendingUp, AlertCircle, ArrowRight } from 'lucide-react'
+import { UtensilsCrossed, TrendingUp, AlertCircle, ArrowRight, Download } from 'lucide-react'
+import dbConnect from '@/lib/db/mongodb'
+import { Order } from '@/models/Order'
+import { Payment } from '@/models/Payment'
+import { User } from '@/models/User'
+import { Menu } from '@/models/Menu'
 
 export default async function OwnerDashboard() {
+  await dbConnect()
   const supabase = await createClient()
 
-  const today = new Date().toISOString().split('T')[0]
+  // Ensure authenticated
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
   // 1. Today's orders count and revenue
-  const { data: todayOrders } = await supabase
-    .from('orders')
-    .select('total_amount, status')
-    .gte('created_at', `${today}T00:00:00.000Z`)
+  const todayOrders = await Order.find({ createdAt: { $gte: today } }).lean()
 
-  const todaysRevenue = todayOrders?.filter(o => o.status === 'delivered').reduce((sum, o) => sum + Number(o.total_amount), 0) || 0
-  const todaysOrdersCount = todayOrders?.length || 0
-  const pendingOrdersCount = todayOrders?.filter(o => o.status === 'pending').length || 0
+  const todaysRevenue = todayOrders.filter(o => o.status === 'delivered').reduce((sum, o) => sum + o.totalAmount, 0)
+  const todaysOrdersCount = todayOrders.length
+  const pendingOrdersCount = todayOrders.filter(o => o.status === 'pending').length
 
-  // 2. Total Dues (Optimized for dashboard: total delivered orders - total payments)
-  // Note: For a real app with many users, this should be a DB view or cron aggregated.
-  const { data: allOrders } = await supabase.from('orders').select('total_amount').eq('status', 'delivered')
-  const { data: allPayments } = await supabase.from('payments').select('amount')
+  // 2. Total Dues
+  const allOrders = await Order.find({ status: 'delivered' }).lean()
+  const allPayments = await Payment.find().lean()
   
-  const totalDelivered = allOrders?.reduce((sum, o) => sum + Number(o.total_amount), 0) || 0
-  const totalPaid = allPayments?.reduce((sum, p) => sum + Number(p.amount), 0) || 0
+  const totalDelivered = allOrders.reduce((sum, o) => sum + o.totalAmount, 0)
+  const totalPaid = allPayments.reduce((sum, p) => sum + p.amount, 0)
   const totalDues = Math.max(0, totalDelivered - totalPaid)
 
   // 3. Recent 5 orders
-  const { data: recentOrders } = await supabase
-    .from('orders')
-    .select('*, profiles(name), menus(item_name)')
-    .order('created_at', { ascending: false })
-    .limit(5)
+  const recentOrders = await Order.find().sort({ createdAt: -1 }).limit(5).lean()
+  
+  // Fetch related users and menus for recent orders
+  const userIds = [...new Set(recentOrders.map(o => o.userId))]
+  const users = await User.find({ supabaseId: { $in: userIds } }).lean()
+  const userMap = users.reduce((acc: any, u) => { acc[u.supabaseId] = u; return acc }, {})
+  
+  const menuIds = [...new Set(recentOrders.map(o => o.menuId))]
+  const menus = await Menu.find({ _id: { $in: menuIds } }).lean()
+  const menuMap = menus.reduce((acc: any, m) => { acc[m._id?.toString()] = m; return acc }, {})
 
-  // 4. Mock Revenue Data for Chart (Last 6 months)
-  // In production, we'd query this using date_trunc('month') via RPC
-  // For demo purposes, we will return some mock data if DB is empty, or aggregate real data.
+  const recentOrdersWithDetails = recentOrders.map(o => ({
+    ...o,
+    id: o._id?.toString(),
+    customerName: userMap[o.userId]?.name || 'Unknown',
+    itemName: menuMap[o.menuId]?.item_name || 'Unknown Item'
+  }))
+
+  // 4. Mock Revenue Data for Chart
   const revenueData = [
     { month: 'Jan', revenue: 15000 },
     { month: 'Feb', revenue: 18000 },
@@ -50,9 +67,11 @@ export default async function OwnerDashboard() {
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-extrabold text-foreground mb-1">Owner Dashboard</h1>
-        <p className="text-muted-foreground">{format(new Date(), 'EEEE, MMMM do yyyy')}</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-foreground mb-1">Owner Dashboard</h1>
+          <p className="text-muted-foreground">{format(new Date(), 'EEEE, MMMM do yyyy')}</p>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -90,6 +109,30 @@ export default async function OwnerDashboard() {
         </Card>
       </div>
 
+      {/* Export Data Section */}
+      <Card className="border-primary/20 shadow-sm bg-primary/5">
+        <CardHeader>
+          <CardTitle className="text-lg">Export Data (CSV)</CardTitle>
+          <CardDescription>Download your data for accounting and backup purposes.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-4">
+            <a href="/api/export?type=orders&range=all" className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 gap-2">
+              <Download className="w-4 h-4" /> All Orders
+            </a>
+            <a href="/api/export?type=orders&range=month" className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 gap-2">
+              <Download className="w-4 h-4" /> This Month's Orders
+            </a>
+            <a href="/api/export?type=payments&range=all" className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-10 px-4 py-2 gap-2">
+              <Download className="w-4 h-4" /> All Payments
+            </a>
+            <a href="/api/export?type=dues" className="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 gap-2">
+              <Download className="w-4 h-4" /> Pending Dues Report
+            </a>
+          </div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <Card className="col-span-1 lg:col-span-2 border-border shadow-sm">
           <CardHeader>
@@ -107,15 +150,15 @@ export default async function OwnerDashboard() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentOrders && recentOrders.length > 0 ? (
-                recentOrders.map((order: any) => (
+              {recentOrdersWithDetails && recentOrdersWithDetails.length > 0 ? (
+                recentOrdersWithDetails.map((order: any) => (
                   <div key={order.id} className="flex items-center justify-between pb-4 border-b border-border last:border-0 last:pb-0">
                     <div>
-                      <p className="font-semibold text-sm text-foreground">{order.profiles?.name}</p>
-                      <p className="text-xs text-muted-foreground">{order.menus?.item_name}</p>
+                      <p className="font-semibold text-sm text-foreground">{order.customerName}</p>
+                      <p className="text-xs text-muted-foreground">{order.itemName}</p>
                     </div>
                     <div className="text-right">
-                      <p className="font-bold text-sm">₹{order.total_amount}</p>
+                      <p className="font-bold text-sm">₹{order.totalAmount}</p>
                       <p className="text-[10px] uppercase text-muted-foreground">{order.status}</p>
                     </div>
                   </div>
