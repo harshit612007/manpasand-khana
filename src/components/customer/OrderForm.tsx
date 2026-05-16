@@ -16,7 +16,7 @@ type Menu = {
   price: number
   description: string
   image_url?: string
-  items?: { id: string; name: string }[]
+  items?: { id: string; name: string; price?: number }[]
 }
 
 type Extra = {

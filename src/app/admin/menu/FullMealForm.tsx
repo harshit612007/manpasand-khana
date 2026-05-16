@@ -11,7 +11,7 @@ import { Plus, X } from 'lucide-react'
 import Image from 'next/image'
 
 export default function FullMealForm({ menu, today, extrasTotal }: { menu: any, today: string, extrasTotal: number }) {
-  const [items, setItems] = useState<{id: string, name: string}[]>(menu?.items || [])
+  const [items, setItems] = useState<{id: string, name: string, price?: number}[]>(menu?.items || [])
   const [newItemName, setNewItemName] = useState('')
 
   const handleAddItem = () => {

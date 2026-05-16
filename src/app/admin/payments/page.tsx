@@ -8,8 +8,6 @@ import { Order } from '@/models/Order'
 import { Payment } from '@/models/Payment'
 
 export default async function OwnerPayments() {
-  const supabase = await createClient()
-
   await dbConnect()
   const supabase = await createClient()
 
