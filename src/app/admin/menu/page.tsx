@@ -3,18 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
-import { addMenuExtra, deleteMenuExtra } from '@/lib/actions/menu'
-import { Trash2, Plus, ChefHat, Utensils } from 'lucide-react'
+import { Trash2, Plus, ChefHat, Tag, ToggleLeft, ToggleRight } from 'lucide-react'
 import dbConnect from '@/lib/db/mongodb'
 import { Menu } from '@/models/Menu'
-import { MenuExtra } from '@/models/MenuExtra'
-import FullMealForm from './FullMealForm'
+import { addMenuItem, deleteMenuItem, setBundlePrice, toggleMenuAvailability } from '@/lib/actions/menu'
 
 export default async function OwnerMenu() {
   await dbConnect()
   const supabase = await createClient()
 
-  // Ensure authenticated
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
@@ -23,133 +20,151 @@ export default async function OwnerMenu() {
   const menuDoc = await Menu.findOne({ date: today }).lean()
   const menu = menuDoc ? { ...menuDoc, id: menuDoc._id?.toString() } : null
 
-  let extras: any[] = []
-  if (menu) {
-    const extrasDocs = await MenuExtra.find({ menuId: menu.id }).sort({ createdAt: 1 }).lean()
-    extras = extrasDocs.map(e => ({ ...e, id: e._id?.toString() }))
-  }
-
-  const fullMealPrice = Number(menu?.price ?? 0)
-  const individualTotal = extras.reduce((sum: number, e: any) => sum + Number(e.price), 0)
+  const totalRevenue = (menu?.items || []).reduce((sum: number, item: any) => sum + item.price, 0)
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-3xl font-extrabold text-foreground mb-1">Menu Management</h1>
-        <p className="text-muted-foreground">Set today's full meal and individual item prices. Customers can order the full thali or pick individual items.</p>
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
+        <div>
+          <h1 className="text-3xl font-extrabold text-foreground mb-1">Menu Management</h1>
+          <p className="text-muted-foreground">Add items for today. Customers will pick what they want.</p>
+        </div>
+        {menu && (
+          <form action={async () => {
+            'use server'
+            await toggleMenuAvailability(menu.id, !menu.available)
+          }}>
+            <Button type="submit" variant={menu.available ? 'default' : 'outline'} className="gap-2">
+              {menu.available 
+                ? <><ToggleRight className="w-4 h-4" /> Menu is Open</>
+                : <><ToggleLeft className="w-4 h-4" /> Menu is Closed</>
+              }
+            </Button>
+          </form>
+        )}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Full Meal Card */}
-        <Card className="border-border shadow-sm">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Add Item Form */}
+        <Card className="border-border shadow-sm h-fit">
+          <CardHeader className="flex flex-row items-center gap-3 pb-4">
+            <div className="p-2 rounded-full bg-primary/10">
+              <Plus className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <CardTitle>Add Item</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Today: {today}</p>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <form action={addMenuItem} className="space-y-4">
+              <input type="hidden" name="date" value={today} />
+              <div className="space-y-1">
+                <Label htmlFor="name">Item Name *</Label>
+                <Input id="name" name="name" required placeholder="e.g. Dal Tadka, Paneer Butter Masala" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="price">Price (₹) *</Label>
+                <Input id="price" name="price" type="number" min="0" step="0.5" required placeholder="40" />
+              </div>
+              <div className="space-y-1">
+                <Label htmlFor="description">Description (optional)</Label>
+                <Input id="description" name="description" placeholder="e.g. With ghee, served with..." />
+              </div>
+              <Button type="submit" className="w-full gap-2">
+                <Plus className="w-4 h-4" /> Add to Today's Menu
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+
+        {/* Today's Items */}
+        <Card className="border-border shadow-sm lg:col-span-2">
           <CardHeader className="flex flex-row items-center gap-3 pb-4">
             <div className="p-2 rounded-full bg-primary/10">
               <ChefHat className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <CardTitle>Today's Full Meal (Thali)</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">The complete meal price customers can order</p>
+            <div className="flex-1">
+              <CardTitle>Today's Items ({menu?.items?.length || 0})</CardTitle>
+              <p className="text-xs text-muted-foreground mt-1">Customers see and order from this list</p>
             </div>
+            {menu && (menu?.items?.length || 0) > 0 && (
+              <span className="text-sm font-bold text-primary">Total: ₹{totalRevenue}</span>
+            )}
           </CardHeader>
-          <CardContent>
-            <FullMealForm menu={menu} today={today} extrasTotal={individualTotal} />
-          </CardContent>
-        </Card>
-
-        {/* Individual Items Card */}
-        <Card className="border-border shadow-sm h-fit">
-          <CardHeader className="flex flex-row items-center gap-3 pb-4">
-            <div className="p-2 rounded-full bg-primary/10">
-              <Utensils className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <CardTitle>Individual Items & Extras</CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">Customers can mix & match these separately</p>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {!menu ? (
-              <div className="text-center py-8">
-                <ChefHat className="w-10 h-10 text-muted-foreground mx-auto mb-3 opacity-50" />
-                <p className="text-muted-foreground text-sm">Save the full meal first, then add individual items.</p>
+          <CardContent className="space-y-4">
+            {!menu || (menu?.items?.length || 0) === 0 ? (
+              <div className="text-center py-12 border border-dashed border-border rounded-xl">
+                <ChefHat className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-40" />
+                <p className="text-muted-foreground font-medium">No items added yet</p>
+                <p className="text-xs text-muted-foreground mt-1">Use the form to add today's dishes</p>
               </div>
             ) : (
-              <div className="space-y-6">
-                {/* Add item form */}
+              <div className="space-y-3">
+                {menu.items.map((item: any) => (
+                  <div key={item.id} className="flex items-center gap-4 p-4 border border-border rounded-xl bg-muted/30 hover:bg-muted/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-foreground truncate">{item.name}</p>
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="font-extrabold text-primary text-lg shrink-0">₹{item.price}</span>
+                    <form action={async () => {
+                      'use server'
+                      await deleteMenuItem(menu.id, item.id)
+                    }}>
+                      <Button variant="ghost" size="icon" type="submit" className="text-destructive hover:text-destructive hover:bg-destructive/10 w-8 h-8 shrink-0">
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </Button>
+                    </form>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Bundle Price Section */}
+            {menu && (menu?.items?.length || 0) > 0 && (
+              <div className="pt-4 border-t border-border space-y-3">
+                <div className="flex items-center gap-2">
+                  <Tag className="w-4 h-4 text-primary" />
+                  <p className="font-semibold text-sm">Full Thali Bundle Price (Optional)</p>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Set a discounted flat price so customers can one-click order everything. 
+                  {menu.bundle_price ? ` Currently: ₹${menu.bundle_price}` : ' Not set — customers pick items individually.'}
+                </p>
                 <form action={async (formData) => {
                   'use server'
-                  const name = formData.get('name') as string
-                  const price = parseFloat(formData.get('price') as string)
-                  await addMenuExtra(menu.id, name, price)
-                }} className="space-y-3 border-b border-border pb-6">
-                  <p className="text-sm font-semibold text-foreground">Add an Item</p>
-                  <div className="flex gap-2 items-end">
-                    <div className="flex-1 space-y-1">
-                      <Label htmlFor="extra_name" className="text-xs">Item Name</Label>
-                      <Input id="extra_name" name="name" required placeholder="e.g. Dal, 2 Rotis, Rice, Sabzi" />
-                    </div>
-                    <div className="w-24 space-y-1">
-                      <Label htmlFor="extra_price" className="text-xs">Price ₹</Label>
-                      <Input id="extra_price" name="price" type="number" min="0" step="0.5" required placeholder="30" />
-                    </div>
-                    <Button type="submit" size="icon" className="shrink-0">
-                      <Plus className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </form>
-
-                {/* Items list */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <h4 className="font-semibold text-sm">Current Items ({extras.length})</h4>
-                    {extras.length > 0 && (
-                      <span className="text-xs text-muted-foreground">Total: ₹{individualTotal}</span>
-                    )}
-                  </div>
-                  {extras.length === 0 ? (
-                    <p className="text-sm text-muted-foreground py-4 text-center">No individual items yet. Add items like Dal, Roti, Rice, Sabzi etc.</p>
-                  ) : (
-                    <div className="space-y-2">
-                      {extras.map((extra: any) => (
-                        <div key={extra.id} className="flex items-center justify-between p-3 border border-border rounded-lg bg-muted/30">
-                          <div>
-                            <p className="font-bold text-sm text-foreground">{extra.name}</p>
-                            <p className="text-xs text-primary font-semibold">₹{extra.price}</p>
-                          </div>
-                          <form action={async () => {
-                            'use server'
-                            await deleteMenuExtra(extra.id)
-                          }}>
-                            <Button variant="ghost" size="icon" type="submit" className="text-destructive hover:text-destructive hover:bg-destructive/10 w-8 h-8">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </form>
-                        </div>
-                      ))}
-                    </div>
+                  const val = formData.get('bundle_price') as string
+                  const price = val ? parseFloat(val) : null
+                  await setBundlePrice(menu.id, price)
+                }} className="flex gap-2">
+                  <Input
+                    name="bundle_price"
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    defaultValue={menu.bundle_price || ''}
+                    placeholder={`e.g. ${Math.round(totalRevenue * 0.85)} (15% off)`}
+                    className="flex-1"
+                  />
+                  <Button type="submit" variant="outline" className="shrink-0">
+                    {menu.bundle_price ? 'Update' : 'Set'} Bundle
+                  </Button>
+                  {menu.bundle_price && (
+                    <form action={async () => {
+                      'use server'
+                      await setBundlePrice(menu.id, null)
+                    }}>
+                      <Button type="submit" variant="ghost" className="text-destructive hover:text-destructive shrink-0">
+                        Remove
+                      </Button>
+                    </form>
                   )}
-                </div>
-
-                {/* Summary */}
-                {extras.length > 0 && (
-                  <div className="bg-primary/5 border border-primary/20 rounded-lg p-3 text-sm space-y-1">
-                    <p className="font-semibold text-foreground">Pricing Summary</p>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Full Meal Price</span>
-                      <span className="font-bold text-foreground">₹{fullMealPrice}</span>
-                    </div>
-                    <div className="flex justify-between text-muted-foreground">
-                      <span>Individual Items Total</span>
-                      <span>₹{individualTotal}</span>
-                    </div>
-                    {individualTotal > fullMealPrice && (
-                      <div className="flex justify-between text-green-700 dark:text-green-400 pt-1 border-t border-primary/20">
-                        <span className="font-semibold">Customer saves</span>
-                        <span className="font-bold">₹{individualTotal - fullMealPrice}</span>
-                      </div>
-                    )}
-                  </div>
-                )}
+                </form>
               </div>
             )}
           </CardContent>

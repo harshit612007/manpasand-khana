@@ -5,7 +5,7 @@ import { revalidatePath } from 'next/cache'
 import dbConnect from '@/lib/db/mongodb'
 import { User } from '@/models/User'
 import { Menu } from '@/models/Menu'
-import { MenuExtra } from '@/models/MenuExtra'
+import { randomBytes } from 'crypto'
 
 async function verifyOwner() {
   await dbConnect()
@@ -19,62 +19,57 @@ async function verifyOwner() {
   return { user, supabase }
 }
 
-export async function createOrUpdateMenu(formData: FormData) {
-  const { supabase } = await verifyOwner()
+// Ensure today's menu document exists, return it
+async function getOrCreateTodayMenu(date: string) {
+  let menu = await Menu.findOne({ date })
+  if (!menu) {
+    menu = await Menu.create({ date, available: true, items: [] })
+  }
+  return menu
+}
 
-  const itemName = formData.get('item_name') as string
-  const description = formData.get('description') as string
+export async function addMenuItem(formData: FormData) {
+  await verifyOwner()
+
+  const date = formData.get('date') as string
+  const name = formData.get('name') as string
   const price = parseFloat(formData.get('price') as string)
-  const available = formData.get('available') === 'on'
-  const date = formData.get('date') as string || new Date().toISOString().split('T')[0]
-  const imageFile = formData.get('image') as File | null
-  const itemsStr = formData.get('items') as string
-  let items = []
-  if (itemsStr) {
-    try { items = JSON.parse(itemsStr) } catch(e) {}
+  const description = (formData.get('description') as string) || ''
+
+  if (!name || isNaN(price)) throw new Error('Name and price are required')
+
+  const menu = await getOrCreateTodayMenu(date)
+  const newItem = {
+    id: randomBytes(8).toString('hex'),
+    name,
+    price,
+    description,
+    available: true,
   }
 
-  let imageUrl = formData.get('existing_image_url') as string | null
-
-  if (imageFile && imageFile.size > 0) {
-    const fileExt = imageFile.name.split('.').pop()
-    const fileName = `${date}-${Math.random()}.${fileExt}`
-    
-    // We keep Supabase for Storage as it's not the database
-    const { error: uploadError } = await supabase.storage
-      .from('menu-images')
-      .upload(`${date}/${fileName}`, imageFile)
-
-    if (!uploadError) {
-      const { data: { publicUrl } } = supabase.storage
-        .from('menu-images')
-        .getPublicUrl(`${date}/${fileName}`)
-      imageUrl = publicUrl
-    }
-  }
-
-  const existingMenu = await Menu.findOne({ date })
-
-  if (existingMenu) {
-    await Menu.updateOne({ _id: existingMenu._id }, { item_name: itemName, description, price, available, image_url: imageUrl, items })
-  } else {
-    await Menu.create({ date, item_name: itemName, description, price, available, image_url: imageUrl, items })
-  }
+  await Menu.updateOne({ _id: menu._id }, { $push: { items: newItem } })
 
   revalidatePath('/admin/menu')
   revalidatePath('/dashboard')
 }
 
-export async function addMenuExtra(menuId: string, name: string, price: number) {
+export async function deleteMenuItem(menuId: string, itemId: string) {
   await verifyOwner()
-  await MenuExtra.create({ menuId, name, price })
+  await Menu.updateOne({ _id: menuId }, { $pull: { items: { id: itemId } } })
   revalidatePath('/admin/menu')
   revalidatePath('/dashboard')
 }
 
-export async function deleteMenuExtra(extraId: string) {
+export async function setBundlePrice(menuId: string, bundlePrice: number | null) {
   await verifyOwner()
-  await MenuExtra.findByIdAndDelete(extraId)
+  await Menu.updateOne({ _id: menuId }, { bundle_price: bundlePrice ?? undefined })
+  revalidatePath('/admin/menu')
+  revalidatePath('/dashboard')
+}
+
+export async function toggleMenuAvailability(menuId: string, available: boolean) {
+  await verifyOwner()
+  await Menu.updateOne({ _id: menuId }, { available })
   revalidatePath('/admin/menu')
   revalidatePath('/dashboard')
 }

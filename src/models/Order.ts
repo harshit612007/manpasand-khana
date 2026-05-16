@@ -1,12 +1,12 @@
 import mongoose, { Schema, Document } from 'mongoose';
 
 export interface IOrder extends Document {
-  user_id: string; // Maps to Supabase auth user.id
-  menu_id: mongoose.Types.ObjectId;
+  user_id: string;
+  menu_id: string;
   quantity: number;
   notes?: string;
-  extras: { id: string; name: string; price: number }[];
-  excluded_items: { id: string; name: string }[]; // New: user deselects items from full course
+  selected_items: { id: string; name: string; price: number }[];
+  is_bundle: boolean;
   total_amount: number;
   status: string;
   createdAt: Date;
@@ -14,11 +14,11 @@ export interface IOrder extends Document {
 
 const OrderSchema: Schema = new Schema({
   user_id: { type: String, required: true },
-  menu_id: { type: Schema.Types.ObjectId, ref: 'Menu', required: true },
+  menu_id: { type: String, required: true },
   quantity: { type: Number, default: 1 },
   notes: { type: String },
-  extras: [{ id: String, name: String, price: Number }],
-  excluded_items: [{ id: String, name: String }],
+  selected_items: [{ id: String, name: String, price: Number }],
+  is_bundle: { type: Boolean, default: false },
   total_amount: { type: Number, required: true },
   status: { type: String, default: 'pending' },
   createdAt: { type: Date, default: Date.now },

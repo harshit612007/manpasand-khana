@@ -1,10 +1,8 @@
 import { createClient } from '@/lib/supabase/server'
-import { MenuCard } from '@/components/customer/MenuCard'
 import { OrderForm } from '@/components/customer/OrderForm'
-import { ChefHat } from 'lucide-react'
+import { ChefHat, Utensils } from 'lucide-react'
 import dbConnect from '@/lib/db/mongodb'
 import { Menu } from '@/models/Menu'
-import { MenuExtra } from '@/models/MenuExtra'
 
 export default async function CustomerDashboard() {
   await dbConnect()
@@ -12,28 +10,65 @@ export default async function CustomerDashboard() {
   const today = new Date().toISOString().split('T')[0]
 
   const menuDoc = await Menu.findOne({ date: today, available: true }).lean()
-  const menu = menuDoc ? { ...menuDoc, id: menuDoc._id?.toString() } : null
-
-  let extras: any[] = []
-  if (menu) {
-    const extrasDocs = await MenuExtra.find({ menuId: menu.id }).lean()
-    extras = extrasDocs.map(e => ({ ...e, id: e._id?.toString() }))
-  }
+  const menu = menuDoc ? {
+    id: menuDoc._id?.toString(),
+    available: menuDoc.available,
+    bundle_price: menuDoc.bundle_price,
+    items: (menuDoc.items || []).map((i: any) => ({
+      id: i.id,
+      name: i.name,
+      price: i.price,
+      description: i.description,
+      available: i.available ?? true,
+    }))
+  } : null
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
       <div>
         <h1 className="text-3xl font-extrabold text-foreground mb-2">Today's Menu</h1>
-        <p className="text-muted-foreground">Freshly prepared for you.</p>
+        <p className="text-muted-foreground">Select the items you want and place your order.</p>
       </div>
 
-      {menu ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          <div>
-            <MenuCard menu={menu} />
+      {menu && menu.items.length > 0 ? (
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+          {/* Menu Preview */}
+          <div className="lg:col-span-2 space-y-4">
+            <div className="p-5 bg-card border border-border rounded-2xl space-y-3">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="p-2 bg-primary/10 rounded-full">
+                  <Utensils className="w-5 h-5 text-primary" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-lg text-foreground">Today's Items</h2>
+                  <p className="text-xs text-muted-foreground">{today}</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                {menu.items.map((item: any) => (
+                  <div key={item.id} className="flex justify-between items-center py-2 border-b border-border/50 last:border-0">
+                    <div>
+                      <p className="font-semibold text-foreground">{item.name}</p>
+                      {item.description && (
+                        <p className="text-xs text-muted-foreground">{item.description}</p>
+                      )}
+                    </div>
+                    <span className="font-bold text-primary shrink-0 ml-4">₹{item.price}</span>
+                  </div>
+                ))}
+              </div>
+              {menu.bundle_price && (
+                <div className="mt-3 pt-3 border-t border-primary/20 flex justify-between items-center">
+                  <span className="text-sm font-semibold text-foreground">Full Thali Bundle</span>
+                  <span className="font-extrabold text-primary">₹{menu.bundle_price}</span>
+                </div>
+              )}
+            </div>
           </div>
-          <div>
-            <OrderForm menu={menu} extras={extras} />
+
+          {/* Order Form */}
+          <div className="lg:col-span-3">
+            <OrderForm menu={menu} />
           </div>
         </div>
       ) : (

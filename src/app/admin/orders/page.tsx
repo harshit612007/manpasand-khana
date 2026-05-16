@@ -105,11 +105,13 @@ export default async function OwnerOrders({ searchParams }: { searchParams: Prom
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-2">
-                      <span className="bg-muted px-2 py-1 rounded-md text-xs font-bold">Qty: {order.quantity}</span>
-                      {order.extras && Array.isArray(order.extras) && order.extras.length > 0 && (
-                        <span className="bg-primary/10 text-primary px-2 py-1 rounded-md text-xs font-bold">
-                          Extras: {order.extras.map((e: any) => e.name).join(', ')}
+                      {order.selected_items && Array.isArray(order.selected_items) && order.selected_items.map((item: any) => (
+                        <span key={item.id} className="bg-primary/10 text-primary px-2 py-1 rounded-md text-xs font-semibold">
+                          {item.name} — ₹{item.price}
                         </span>
+                      ))}
+                      {order.is_bundle && (
+                        <span className="bg-green-500/10 text-green-700 px-2 py-1 rounded-md text-xs font-bold">Full Thali Bundle</span>
                       )}
                     </div>
 
