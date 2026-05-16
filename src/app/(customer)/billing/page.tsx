@@ -72,7 +72,7 @@ export default async function CustomerBilling() {
                   <div key={payment.id} className="flex justify-between items-center p-4 bg-muted/50 rounded-xl border border-border">
                     <div>
                       <p className="font-bold text-foreground">Paid via {payment.method}</p>
-                      <p className="text-sm text-muted-foreground">{format(new Date(payment.created_at), 'PPP')}</p>
+                      <p className="text-sm text-muted-foreground">{new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'long' }).format(new Date(payment.created_at))}</p>
                       {payment.notes && <p className="text-xs text-muted-foreground mt-1">Note: {payment.notes}</p>}
                     </div>
                     <span className="font-extrabold text-green-600">₹{payment.amount}</span>

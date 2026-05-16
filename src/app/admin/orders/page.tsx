@@ -101,7 +101,7 @@ export default async function OwnerOrders({ searchParams }: { searchParams: Prom
                       <p><strong>Phone:</strong> {order.profiles?.phone || 'Not provided'}</p>
                       <p><strong>Address:</strong> {order.profiles?.address || 'Not provided'}</p>
                       <p><strong>Item:</strong> {order.menus?.item_name}</p>
-                      <p><strong>Time:</strong> {format(new Date(order.created_at), 'p')}</p>
+                      <p><strong>Time:</strong> {new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', timeStyle: 'short' }).format(new Date(order.created_at))}</p>
                     </div>
 
                     <div className="flex flex-wrap gap-2 mt-2">

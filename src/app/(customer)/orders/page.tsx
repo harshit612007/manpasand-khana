@@ -57,7 +57,7 @@ export default async function CustomerOrders() {
                     </div>
                     
                     <p className="text-sm text-muted-foreground font-medium">
-                      {format(new Date(order.created_at), 'PPP at p')}
+                      {new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'long', timeStyle: 'short' }).format(new Date(order.created_at))}
                     </p>
                     
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-2 text-sm text-muted-foreground">
