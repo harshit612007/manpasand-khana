@@ -25,4 +25,5 @@ export async function addPayment(userId: string, amount: number, notes?: string)
 
   revalidatePath('/admin/payments')
   revalidatePath('/admin/dashboard')
+  revalidatePath('/billing')
 }

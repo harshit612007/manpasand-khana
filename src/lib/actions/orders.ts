@@ -57,4 +57,7 @@ export async function updateOrderStatus(orderId: string, status: string) {
 
   revalidatePath('/admin/orders')
   revalidatePath('/admin/dashboard')
+  revalidatePath('/admin/payments')
+  revalidatePath('/billing')
+  revalidatePath('/orders')
 }
