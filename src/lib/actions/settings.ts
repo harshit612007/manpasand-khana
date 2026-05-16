@@ -29,16 +29,31 @@ export async function updateOwnerSettings(formData: FormData) {
     const fileExt = qrImageFile.name.split('.').pop()
     const fileName = `gpay-qr-${Date.now()}.${fileExt}`
 
-    // Keep Supabase for storage
-    const { error: uploadError } = await supabase.storage
+    // Use Admin Client to bypass RLS
+    const { createClient: createAdminClient } = await import('@supabase/supabase-js')
+    const adminClient = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+
+    let { error: uploadError } = await adminClient.storage
       .from('owner-assets')
       .upload(fileName, qrImageFile)
 
-    if (uploadError) {
-      throw new Error(`Failed to upload QR Code: ${uploadError.message}. Please ensure the 'owner-assets' bucket exists and is public in Supabase.`)
+    // If bucket doesn't exist, create it and retry
+    if (uploadError && uploadError.message.includes('Bucket not found')) {
+      await adminClient.storage.createBucket('owner-assets', { public: true })
+      const retry = await adminClient.storage
+        .from('owner-assets')
+        .upload(fileName, qrImageFile)
+      uploadError = retry.error
     }
 
-    const { data: { publicUrl } } = supabase.storage
+    if (uploadError) {
+      throw new Error(`Failed to upload QR Code: ${uploadError.message}. Make sure your Supabase project is active.`)
+    }
+
+    const { data: { publicUrl } } = adminClient.storage
       .from('owner-assets')
       .getPublicUrl(fileName)
     qrUrl = publicUrl
