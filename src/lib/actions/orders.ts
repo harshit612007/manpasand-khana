@@ -64,3 +64,19 @@ export async function updateOrderStatus(orderId: string, status: string) {
   revalidatePath('/billing')
   revalidatePath('/orders')
 }
+
+export async function deleteOrder(orderId: string) {
+  await dbConnect()
+  const supabase = await createClient()
+
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error("Unauthorized")
+
+  const profile = await User.findOne({ supabaseId: user.id })
+  if (profile?.role !== 'owner') throw new Error("Unauthorized")
+
+  await Order.findByIdAndDelete(orderId)
+
+  revalidatePath('/admin/orders')
+  revalidatePath('/admin/dashboard')
+}

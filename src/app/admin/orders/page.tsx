@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
-import { updateOrderStatus } from '@/lib/actions/orders'
+import { updateOrderStatus, deleteOrder } from '@/lib/actions/orders'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
@@ -9,6 +9,7 @@ import dbConnect from '@/lib/db/mongodb'
 import { User } from '@/models/User'
 import { Order } from '@/models/Order'
 import { Menu } from '@/models/Menu'
+import { DeleteConfirmButton } from '@/components/owner/DeleteConfirmButton'
 
 export default async function OwnerOrders({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
   await dbConnect()
@@ -142,6 +143,11 @@ export default async function OwnerOrders({ searchParams }: { searchParams: Prom
                         </Button>
                       </form>
                     </div>
+                    <DeleteConfirmButton
+                      label="order"
+                      description={`Delete ${order.profiles?.name}'s order of ₹${order.total_amount}? This cannot be undone.`}
+                      onDelete={async () => { 'use server'; await deleteOrder(order.id) }}
+                    />
                   </div>
                 </div>
               </CardContent>

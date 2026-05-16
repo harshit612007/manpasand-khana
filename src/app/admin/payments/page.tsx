@@ -1,11 +1,13 @@
 import { createClient } from '@/lib/supabase/server'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { AddPaymentSheet } from '@/components/owner/AddPaymentSheet'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, History } from 'lucide-react'
 import dbConnect from '@/lib/db/mongodb'
 import { User } from '@/models/User'
 import { Order } from '@/models/Order'
 import { Payment } from '@/models/Payment'
+import { DeleteConfirmButton } from '@/components/owner/DeleteConfirmButton'
+import { deletePayment } from '@/lib/actions/payments'
 
 export default async function OwnerPayments() {
   await dbConnect()
@@ -17,7 +19,7 @@ export default async function OwnerPayments() {
 
   // Fetch all orders to calculate dues
   const allOrders = await Order.find({ status: 'delivered' }).sort({ createdAt: -1 }).lean()
-  const allPayments = await Payment.find().lean()
+  const allPayments = await Payment.find().sort({ createdAt: -1 }).lean()
 
   const customersWithDues = customers.map(customer => {
     const customerOrders = allOrders.filter(o => o.user_id === customer.id)
@@ -32,8 +34,18 @@ export default async function OwnerPayments() {
     return { ...customer, dues, lastOrderDate }
   }).filter(c => c.dues > 0).sort((a, b) => b.dues - a.dues)
 
+  // For payment history: group by customer
+  const paymentsByCustomer = allPayments.reduce((acc: any, p: any) => {
+    const customer = customers.find(c => c.id === p.user_id)
+    if (!customer) return acc
+    if (!acc[p.user_id]) acc[p.user_id] = { customer, payments: [] }
+    acc[p.user_id].payments.push({ ...p, id: p._id?.toString() })
+    return acc
+  }, {})
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500">
+      {/* Pending Dues */}
       <div>
         <h1 className="text-3xl font-extrabold text-foreground mb-1">Pending Payments</h1>
         <p className="text-muted-foreground">Manage customer dues and record payments.</p>
@@ -50,7 +62,7 @@ export default async function OwnerPayments() {
                     <p className="text-sm text-muted-foreground">Phone: {customer.phone || 'N/A'}</p>
                     {customer.lastOrderDate && (
                       <p className="text-xs text-muted-foreground mt-1">
-                        Last Order: {new Date(customer.lastOrderDate).toLocaleDateString()}
+                        Last Order: {new Date(customer.lastOrderDate).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' })}
                       </p>
                     )}
                   </div>
@@ -77,6 +89,47 @@ export default async function OwnerPayments() {
           </div>
         )}
       </div>
+
+      {/* Payment History */}
+      {Object.values(paymentsByCustomer).length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-4">
+            <History className="w-5 h-5 text-muted-foreground" />
+            <h2 className="text-xl font-bold text-foreground">Payment History</h2>
+          </div>
+          <div className="space-y-4">
+            {Object.values(paymentsByCustomer).map((group: any) => (
+              <Card key={group.customer.id} className="border-border shadow-sm">
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base font-bold">{group.customer.name}</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  {group.payments.map((payment: any) => (
+                    <div key={payment.id} className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-green-600">₹{payment.amount}</span>
+                          {payment.notes && (
+                            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{payment.notes}</span>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {new Intl.DateTimeFormat('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'long', timeStyle: 'short' }).format(new Date(payment.createdAt))}
+                        </p>
+                      </div>
+                      <DeleteConfirmButton
+                        label="payment"
+                        description={`Delete ₹${payment.amount} payment for ${group.customer.name}? This will increase their dues.`}
+                        onDelete={async () => { 'use server'; await deletePayment(payment.id) }}
+                      />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
