@@ -2,7 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
-import { Utensils } from 'lucide-react'
+import Image from 'next/image'
 import Link from 'next/link'
 
 export default function LoginPage() {
@@ -20,7 +20,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <div className="max-w-md w-full bg-card p-8 rounded-2xl shadow-lg border border-border text-center">
-        <Utensils className="text-primary w-12 h-12 mx-auto mb-4" />
+        <div className="relative w-24 h-24 mx-auto mb-4 rounded-2xl overflow-hidden shadow-sm">
+          <Image src="/logo.png" alt="Manpasand Khana Logo" fill className="object-cover" />
+        </div>
         <h1 className="text-2xl font-extrabold text-foreground mb-2">Welcome Back</h1>
         <p className="text-muted-foreground mb-8">Sign in to your Manpasand Khana account to manage your tiffins.</p>
 
