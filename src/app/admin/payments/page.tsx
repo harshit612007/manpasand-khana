@@ -2,40 +2,37 @@ import { createClient } from '@/lib/supabase/server'
 import { Card, CardContent } from '@/components/ui/card'
 import { AddPaymentSheet } from '@/components/owner/AddPaymentSheet'
 import { AlertCircle } from 'lucide-react'
+import dbConnect from '@/lib/db/mongodb'
+import { User } from '@/models/User'
+import { Order } from '@/models/Order'
+import { Payment } from '@/models/Payment'
 
 export default async function OwnerPayments() {
   const supabase = await createClient()
 
+  await dbConnect()
+  const supabase = await createClient()
+
   // Fetch all customers
-  const { data: customers } = await supabase
-    .from('profiles')
-    .select('id, name, phone')
-    .eq('role', 'customer')
+  const customersDoc = await User.find({ role: 'customer' }).lean()
+  const customers = customersDoc.map(c => ({ id: c.supabaseId, name: c.name, phone: c.phone }))
 
   // Fetch all orders to calculate dues
-  // In a real large app, this should be an RPC call returning aggregated dues per customer.
-  const { data: allOrders } = await supabase
-    .from('orders')
-    .select('user_id, total_amount, created_at')
-    .eq('status', 'delivered')
-    .order('created_at', { ascending: false })
+  const allOrders = await Order.find({ status: 'delivered' }).sort({ createdAt: -1 }).lean()
+  const allPayments = await Payment.find().lean()
 
-  const { data: allPayments } = await supabase
-    .from('payments')
-    .select('user_id, amount')
+  const customersWithDues = customers.map(customer => {
+    const customerOrders = allOrders.filter(o => o.user_id === customer.id)
+    const customerPayments = allPayments.filter(p => p.user_id === customer.id)
 
-  const customersWithDues = customers?.map(customer => {
-    const customerOrders = allOrders?.filter(o => o.user_id === customer.id) || []
-    const customerPayments = allPayments?.filter(p => p.user_id === customer.id) || []
-
-    const totalOrdered = customerOrders.reduce((sum, o) => sum + Number(o.total_amount), 0)
-    const totalPaid = customerPayments.reduce((sum, p) => sum + Number(p.amount), 0)
+    const totalOrdered = customerOrders.reduce((sum, o) => sum + o.total_amount, 0)
+    const totalPaid = customerPayments.reduce((sum, p) => sum + p.amount, 0)
     const dues = Math.max(0, totalOrdered - totalPaid)
     
-    const lastOrderDate = customerOrders.length > 0 ? customerOrders[0].created_at : null
+    const lastOrderDate = customerOrders.length > 0 ? customerOrders[0].createdAt : null
 
     return { ...customer, dues, lastOrderDate }
-  }).filter(c => c.dues > 0).sort((a, b) => b.dues - a.dues) || []
+  }).filter(c => c.dues > 0).sort((a, b) => b.dues - a.dues)
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

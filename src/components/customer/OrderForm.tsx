@@ -53,7 +53,12 @@ export function OrderForm({ menu, extras }: { menu: Menu, extras: Extra[] }) {
     return sum + (extra?.price || 0)
   }, 0)
 
-  const totalAmount = (menu.price * quantity) + extrasTotal
+  const excludedItemsTotal = Array.from(excludedItems).reduce((sum, id) => {
+    const item = menu.items?.find(i => i.id === id)
+    return sum + (item?.price || 0)
+  }, 0)
+
+  const totalAmount = (Math.max(0, menu.price - excludedItemsTotal) * quantity) + extrasTotal
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -67,7 +72,7 @@ export function OrderForm({ menu, extras }: { menu: Menu, extras: Extra[] }) {
 
     const excludedItemsData = Array.from(excludedItems).map(id => {
       const item = menu.items?.find(i => i.id === id)!
-      return { id: item.id, name: item.name }
+      return { id: item.id, name: item.name, price: item.price || 0 }
     })
 
     startTransition(async () => {
@@ -115,11 +120,11 @@ export function OrderForm({ menu, extras }: { menu: Menu, extras: Extra[] }) {
                     className={`flex items-center gap-2 px-3 py-1.5 border rounded-full cursor-pointer transition-colors select-none ${!excludedItems.has(item.id) ? 'bg-primary/10 border-primary/30 text-primary' : 'bg-muted border-border text-muted-foreground line-through opacity-70'}`} 
                     onClick={() => toggleIncludedItem(item.id)}
                   >
-                    <span className="text-sm font-medium">{item.name}</span>
+                    <span className="text-sm font-medium">{item.name} {item.price ? `(-₹${item.price})` : ''}</span>
                   </div>
                 ))}
               </div>
-              <p className="text-xs text-muted-foreground">Tap to remove items you don't want (price remains the same).</p>
+              <p className="text-xs text-muted-foreground">Tap to remove items you don't want (price will be deducted).</p>
             </div>
           )}
 

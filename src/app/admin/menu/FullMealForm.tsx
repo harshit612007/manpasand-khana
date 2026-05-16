@@ -15,9 +15,12 @@ export default function FullMealForm({ menu, today, extrasTotal }: { menu: any, 
   const [newItemName, setNewItemName] = useState('')
 
   const handleAddItem = () => {
+    const priceInput = document.getElementById('newItemPrice') as HTMLInputElement
+    const price = parseFloat(priceInput?.value || '0')
     if (!newItemName.trim()) return
-    setItems([...items, { id: Math.random().toString(36).substring(7), name: newItemName.trim() }])
+    setItems([...items, { id: Math.random().toString(36).substring(7), name: newItemName.trim(), price }])
     setNewItemName('')
+    if(priceInput) priceInput.value = ''
   }
 
   const handleRemoveItem = (id: string) => {
@@ -51,25 +54,44 @@ export default function FullMealForm({ menu, today, extrasTotal }: { menu: any, 
 
       <div className="space-y-3 bg-muted/30 p-3 rounded-lg border border-border">
         <Label>Specific Items in Full Course (Allow customers to remove)</Label>
-        <div className="flex gap-2">
-          <Input 
-            value={newItemName} 
-            onChange={(e) => setNewItemName(e.target.value)} 
-            placeholder="e.g. Rice" 
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.preventDefault()
-                handleAddItem()
-              }
-            }}
-          />
-          <Button type="button" onClick={handleAddItem} size="icon" variant="secondary"><Plus className="w-4 h-4" /></Button>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1 space-y-1">
+            <Label className="text-xs">Item Name</Label>
+            <Input 
+              value={newItemName} 
+              onChange={(e) => setNewItemName(e.target.value)} 
+              placeholder="e.g. Rice" 
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddItem()
+                }
+              }}
+            />
+          </div>
+          <div className="w-24 space-y-1">
+            <Label className="text-xs">Price (₹)</Label>
+            <Input 
+              id="newItemPrice"
+              type="number"
+              step="1"
+              min="0"
+              placeholder="0"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault()
+                  handleAddItem()
+                }
+              }}
+            />
+          </div>
+          <Button type="button" onClick={handleAddItem} size="icon" variant="secondary" className="mb-[2px]"><Plus className="w-4 h-4" /></Button>
         </div>
         {items.length > 0 && (
           <div className="flex flex-wrap gap-2 mt-2">
-            {items.map(item => (
+            {items.map((item: any) => (
               <div key={item.id} className="flex items-center gap-1 bg-background border border-border text-sm px-2 py-1 rounded-md">
-                <span>{item.name}</span>
+                <span>{item.name} {item.price ? `(₹${item.price})` : ''}</span>
                 <button type="button" onClick={() => handleRemoveItem(item.id)} className="text-muted-foreground hover:text-destructive">
                   <X className="w-3 h-3" />
                 </button>

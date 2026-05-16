@@ -2,25 +2,22 @@ import { createClient } from '@/lib/supabase/server'
 import { MenuCard } from '@/components/customer/MenuCard'
 import { OrderForm } from '@/components/customer/OrderForm'
 import { ChefHat } from 'lucide-react'
+import dbConnect from '@/lib/db/mongodb'
+import { Menu } from '@/models/Menu'
+import { MenuExtra } from '@/models/MenuExtra'
 
 export default async function CustomerDashboard() {
+  await dbConnect()
   const supabase = await createClient()
   const today = new Date().toISOString().split('T')[0]
 
-  const { data: menu } = await supabase
-    .from('menus')
-    .select('*')
-    .eq('date', today)
-    .eq('available', true)
-    .single()
+  const menuDoc = await Menu.findOne({ date: today, available: true }).lean()
+  const menu = menuDoc ? { ...menuDoc, id: menuDoc._id?.toString() } : null
 
   let extras: any[] = []
   if (menu) {
-    const { data: menuExtras } = await supabase
-      .from('menu_extras')
-      .select('*')
-      .eq('menu_id', menu.id)
-    extras = menuExtras || []
+    const extrasDocs = await MenuExtra.find({ menuId: menu.id }).lean()
+    extras = extrasDocs.map(e => ({ ...e, id: e._id?.toString() }))
   }
 
   return (

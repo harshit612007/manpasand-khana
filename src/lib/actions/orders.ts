@@ -7,7 +7,7 @@ import { User } from '@/models/User'
 import { Menu } from '@/models/Menu'
 import { Order } from '@/models/Order'
 
-export async function createOrder(formData: FormData, extras: { id: string, name: string, price: number }[], excluded_items: { id: string, name: string }[] = []) {
+export async function createOrder(formData: FormData, extras: { id: string, name: string, price: number }[], excluded_items: { id: string, name: string, price?: number }[] = []) {
   await dbConnect()
   const supabase = await createClient()
 
@@ -23,7 +23,9 @@ export async function createOrder(formData: FormData, extras: { id: string, name
   if (!menu) throw new Error("Menu not found")
 
   const extrasTotal = extras.reduce((sum, extra) => sum + extra.price, 0)
-  const totalAmount = (Number(menu.price) * quantity) + extrasTotal
+  const excludedTotal = excluded_items.reduce((sum, item) => sum + (item.price || 0), 0)
+  
+  const totalAmount = (Math.max(0, Number(menu.price) - excludedTotal) * quantity) + extrasTotal
 
   const order = await Order.create({
     user_id: user.id,

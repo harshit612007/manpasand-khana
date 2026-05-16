@@ -2,18 +2,29 @@ import { createClient } from '@/lib/supabase/server'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { format } from 'date-fns'
+import dbConnect from '@/lib/db/mongodb'
+import { Order } from '@/models/Order'
+import { Menu } from '@/models/Menu'
 
 export default async function CustomerOrders() {
+  await dbConnect()
   const supabase = await createClient()
 
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
-  const { data: orders } = await supabase
-    .from('orders')
-    .select('*, menus(item_name, image_url)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const rawOrders = await Order.find({ user_id: user.id }).sort({ createdAt: -1 }).lean()
+  
+  const menuIds = [...new Set(rawOrders.map(o => o.menu_id))]
+  const menus = await Menu.find({ _id: { $in: menuIds } }).lean()
+  const menuMap = menus.reduce((acc: any, m) => { acc[m._id?.toString()] = m; return acc }, {})
+
+  const orders = rawOrders.map(o => ({
+    ...o,
+    id: o._id?.toString(),
+    menus: menuMap[o.menu_id] || {},
+    created_at: o.createdAt
+  }))
 
   const getStatusColor = (status: string) => {
     switch(status) {

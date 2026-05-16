@@ -3,6 +3,9 @@ import { calculateDues } from '@/lib/utils/billing'
 import { GPayModal } from '@/components/customer/GPayModal'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { format } from 'date-fns'
+import dbConnect from '@/lib/db/mongodb'
+import { Payment } from '@/models/Payment'
+import { OwnerSettings } from '@/models/OwnerSettings'
 
 export default async function CustomerBilling() {
   const supabase = await createClient()
@@ -10,19 +13,19 @@ export default async function CustomerBilling() {
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return null
 
+  await dbConnect()
+
   const dues = await calculateDues(user.id)
 
-  const { data: payments } = await supabase
-    .from('payments')
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const rawPayments = await Payment.find({ user_id: user.id }).sort({ createdAt: -1 }).lean()
+  const payments = rawPayments.map(p => ({
+    ...p,
+    id: p._id?.toString(),
+    created_at: p.createdAt
+  }))
 
-  const { data: settings } = await supabase
-    .from('owner_settings')
-    .select('gpay_qr_url, phone, whatsapp')
-    .limit(1)
-    .single()
+  const settingsDoc = await OwnerSettings.findOne().lean()
+  const settings = settingsDoc ? { ...settingsDoc, id: settingsDoc._id?.toString() } : null
 
   return (
     <div className="space-y-8 animate-in fade-in duration-500">

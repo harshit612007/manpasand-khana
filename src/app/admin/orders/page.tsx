@@ -5,24 +5,43 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { format } from 'date-fns'
 import { Download } from 'lucide-react'
+import dbConnect from '@/lib/db/mongodb'
+import { User } from '@/models/User'
+import { Order } from '@/models/Order'
+import { Menu } from '@/models/Menu'
 
 export default async function OwnerOrders({ searchParams }: { searchParams: Promise<{ filter?: string }> }) {
+  await dbConnect()
   const supabase = await createClient()
   const resolvedSearchParams = await searchParams
   const filter = resolvedSearchParams?.filter || 'all'
-  const today = new Date().toISOString().split('T')[0]
+  
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
-  let query = supabase
-    .from('orders')
-    .select('*, profiles(name, phone, address), menus(item_name)')
-    .gte('created_at', `${today}T00:00:00.000Z`)
-    .order('created_at', { ascending: false })
-
+  let filterQuery: any = { createdAt: { $gte: today } }
   if (filter !== 'all') {
-    query = query.eq('status', filter)
+    filterQuery.status = filter
   }
 
-  const { data: orders } = await query
+  const rawOrders = await Order.find(filterQuery).sort({ createdAt: -1 }).lean()
+  
+  // Fetch related users and menus
+  const userIds = [...new Set(rawOrders.map(o => o.user_id))]
+  const users = await User.find({ supabaseId: { $in: userIds } }).lean()
+  const userMap = users.reduce((acc: any, u) => { acc[u.supabaseId] = u; return acc }, {})
+  
+  const menuIds = [...new Set(rawOrders.map(o => o.menu_id))]
+  const menus = await Menu.find({ _id: { $in: menuIds } }).lean()
+  const menuMap = menus.reduce((acc: any, m) => { acc[m._id?.toString()] = m; return acc }, {})
+
+  const orders = rawOrders.map(o => ({
+    ...o,
+    id: o._id?.toString(),
+    profiles: userMap[o.user_id] || {},
+    menus: menuMap[o.menu_id] || {},
+    created_at: o.createdAt
+  }))
 
   const getStatusColor = (status: string) => {
     switch(status) {
